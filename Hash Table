@@ -1,0 +1,44 @@
+class HashTable:
+    def __init__(self):
+        self.collection = {}
+
+    def hash(self, key_string):
+        """
+        Computes the hash of a string by summing the Unicode values of its characters.
+        """
+        return sum(ord(char) for char in key_string)
+
+    def add(self, key, value):
+        """
+        Adds a key-value pair to the hash table. 
+        Uses the hash as a key to a nested dictionary to handle collisions.
+        """
+        hashed_key = self.hash(key)
+        
+        if hashed_key not in self.collection:
+            self.collection[hashed_key] = {}
+        
+        self.collection[hashed_key][key] = value
+
+    def remove(self, key):
+        """
+        Removes a key-value pair from the hash table if it exists.
+        """
+        hashed_key = self.hash(key)
+        
+        if hashed_key in self.collection and key in self.collection[hashed_key]:
+            del self.collection[hashed_key][key]
+            
+            if not self.collection[hashed_key]:
+                del self.collection[hashed_key]
+
+    def lookup(self, key):
+        """
+        Returns the value associated with the key, or None if the key is not found.
+        """
+        hashed_key = self.hash(key)
+        
+        if hashed_key in self.collection and key in self.collection[hashed_key]:
+            return self.collection[hashed_key][key]
+            
+        return None
