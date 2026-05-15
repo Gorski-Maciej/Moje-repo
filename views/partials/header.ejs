@@ -1,0 +1,12 @@
+<header class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h1">Uploader plików</span>
+    <div class="d-flex align-items-center gap-3">
+      <% if (typeof totalFiles !== 'undefined') { %>
+        <span id="fileCounter" class="badge rounded-pill fs-6 <%= noFiles ? 'bg-danger' : 'bg-success' %>"><%= fileLabel %></span>
+      <% } %>
+      <span class="navbar-text">Witaj, <strong><%= user.imie %> <%= user.nazwisko %></strong></span>
+      <a href="/logout" class="btn btn-outline-danger btn-sm">Wyloguj</a>
+    </div>
+  </div>
+</header>

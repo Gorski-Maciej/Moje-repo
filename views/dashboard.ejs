@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel – Uploader WD</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+  <%- include('partials/header', { user, totalFiles, fileLabel, noFiles }) %>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('partials/sidebar') %>
+      <main class="col-md-10 ms-sm-auto px-4 py-4">
+
+        <section id="lecturesSection">
+          <h4 class="mb-3">📚 Twoje przypisane zajęcia</h4>
+          <% if (studentLectures.length) { %>
+            <div class="row row-cols-1 row-cols-md-2 g-3">
+              <% studentLectures.forEach(l => { %>
+                <div class="col">
+                  <div class="card">
+                    <div class="card-body">
+                      <h6 class="card-title"><%= l.przedmiot %></h6>
+                      <p class="card-text text-muted"><%= l.wykladowca %></p>
+                    </div>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <p class="text-muted">Brak zajęć.</p>
+          <% } %>
+        </section>
+
+        <section id="myFilesSection" style="display:none;">
+          <h4 class="mb-3">📊 Moje pliki według kategorii</h4>
+          <% if (categoriesWithCounts.length) { %>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover align-middle">
+                <thead class="table-light"><tr><th>Kategoria</th><th>Liczba plików</th></tr></thead>
+                <tbody id="myFilesTableBody">
+                  <% categoriesWithCounts.forEach(cat => { %>
+                    <tr class="<%= cat.fileCount === 0 ? 'table-danger' : '' %>">
+                      <td><%= cat.name %> <small class="text-muted">(ID: <%= cat.catid %>)</small></td>
+                      <td>
+                        <% if (cat.fileCount === 0) { %>
+                          <span class="text-danger fw-bold">0 plików</span>
+                        <% } else { %>
+                          <%= pluralFiles(cat.fileCount) %>
+                        <% } %>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } else { %>
+            <p class="text-muted">Brak dopasowanych kategorii.</p>
+          <% } %>
+          <button id="refreshMyFilesBtn" class="btn btn-outline-secondary btn-sm mt-3">Odśwież</button>
+        </section>
+
+        <section id="uploadSection" style="display:none;">
+          <h4 class="mb-3">📤 Prześlij plik</h4>
+          <form id="uploadForm" class="row g-3" style="max-width: 500px;">
+            <div class="col-12">
+              <label for="catSelect" class="form-label">Kategoria</label>
+              <select id="catSelect" name="catid" class="form-select" required><option value="">Wybierz...</option></select>
+            </div>
+            <div class="col-12">
+              <label for="fileInput" class="form-label">Plik</label>
+              <input type="file" class="form-control" id="fileInput" name="file" required>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-success">Wyślij</button>
+            </div>
+          </form>
+          <div id="uploadStatus" class="mt-3"></div>
+        </section>
+
+        <section id="filesSection" style="display:none;">
+          <h4 class="mb-3">📁 Wszystkie pliki</h4>
+          <div class="row g-3 mb-3">
+            <div class="col-md-3"><label class="form-label">Kategoria</label><select id="filterCat" class="form-select"><option value="0">Wszystkie</option></select></div>
+            <div class="col-md-3"><label class="form-label">Użytkownik</label><select id="filterUser" class="form-select"><option value="0">Wszyscy</option></select></div>
+            <div class="col-md-2"><label class="form-label">Timestamp</label><input type="number" id="filterAfter" class="form-control" placeholder="np. 1706313600000"></div>
+            <div class="col-md-2 d-flex align-items-end"><button id="loadFilesBtn" class="btn btn-primary">Załaduj</button></div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped table-sm">
+              <thead class="table-dark"><tr><th>ID</th><th>UserID</th><th>CatID</th><th>MB</th><th>Nazwa</th><th>Data</th></tr></thead>
+              <tbody id="filesTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="usersSection" style="display:none;">
+          <h4 class="mb-3">👥 Użytkownicy</h4>
+          <button id="loadUsersBtn" class="btn btn-primary mb-3">Załaduj</button>
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped table-sm">
+              <thead class="table-dark"><tr><th>ID</th><th>Album</th><th>Imię</th><th>Nazwisko</th><th>Aktywny</th></tr></thead>
+              <tbody id="usersTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Przełączanie sekcji
+    document.querySelectorAll('[data-section]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = link.dataset.section;
+        ['lecturesSection','myFilesSection','uploadSection','filesSection','usersSection'].forEach(id => {
+          document.getElementById(id).style.display = (id === targetId ? 'block' : 'none');
+        });
+      });
+    });
+
+    async function loadCategories() {
+      try {
+        const res = await fetch('/api/categories');
+        const cats = await res.json();
+        const uploadSel = document.getElementById('catSelect');
+        const filterSel = document.getElementById('filterCat');
+        uploadSel.innerHTML = '<option value="">Wybierz...</option>';
+        filterSel.innerHTML = '<option value="0">Wszystkie</option>';
+        cats.forEach(c => {
+          uploadSel.innerHTML += `<option value="${c.catid}">${c.name}</option>`;
+          filterSel.innerHTML += `<option value="${c.catid}">${c.name}</option>`;
+        });
+      } catch(e) {}
+    }
+    loadCategories();
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const status = document.getElementById('uploadStatus');
+      status.innerHTML = '<div class="alert alert-info">Wysyłanie...</div>';
+      try {
+        const resp = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (resp.ok) {
+          status.innerHTML = '<div class="alert alert-success">Plik wysłany!</div>';
+          e.target.reset();
+          refreshMyFiles();
+        } else {
+          status.innerHTML = `<div class="alert alert-danger">Błąd: ${data.error}</div>`;
+        }
+      } catch(err) {
+        status.innerHTML = '<div class="alert alert-danger">Błąd połączenia</div>';
+      }
+    });
+
+    async function refreshMyFiles() {
+      try {
+        const [cntRes, catRes] = await Promise.all([
+          fetch('/api/my-files-count'),
+          fetch('/api/my-files-per-category')
+        ]);
+        const { label } = await cntRes.json();
+        const cats = await catRes.json();
+        const counter = document.getElementById('fileCounter');
+        if (counter) counter.textContent = label;
+        const tbody = document.getElementById('myFilesTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        cats.forEach(cat => {
+          const tr = document.createElement('tr');
+          tr.className = cat.fileCount === 0 ? 'table-danger' : '';
+          const plText = (n) => {
+            const m10 = n % 10, m100 = n % 100;
+            if (m10 === 1 && m100 !== 11) return `${n} plik`;
+            if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return `${n} pliki`;
+            return `${n} plików`;
+          };
+          tr.innerHTML = `<td>${cat.name} <small class="text-muted">(ID: ${cat.catid})</small></td><td>${cat.fileCount === 0 ? '<span class="text-danger fw-bold">0 plików</span>' : plText(cat.fileCount)}</td>`;
+          tbody.appendChild(tr);
+        });
+      } catch(err) { console.error(err); }
+    }
+    document.getElementById('refreshMyFilesBtn').addEventListener('click', refreshMyFiles);
+
+    document.getElementById('loadFilesBtn').addEventListener('click', async () => {
+      const catid = document.getElementById('filterCat').value;
+      const userid = document.getElementById('filterUser').value || 0;
+      const after = document.getElementById('filterAfter').value;
+      let url = `/api/files?catid=${catid}&userid=${userid}`;
+      if (after) url += `&after=${after}`;
+      const res = await fetch(url);
+      const files = await res.json();
+      const tbody = document.getElementById('filesTableBody');
+      tbody.innerHTML = '';
+      (files || []).forEach(f => {
+        tbody.innerHTML += `<tr><td>${f.id}</td><td>${f.userid}</td><td>${f.catid}</td><td>${f.sizeMb}</td><td>${f.filename}</td><td>${new Date(f.timestamp).toLocaleString()}</td></tr>`;
+      });
+    });
+
+    document.getElementById('loadUsersBtn').addEventListener('click', async () => {
+      const res = await fetch('/api/users');
+      const users = await res.json();
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = '';
+      users.forEach(u => {
+        tbody.innerHTML += `<tr><td>${u.studentid}</td><td>${u.album}</td><td>${u.imie}</td><td>${u.nazwisko}</td><td>${u.active ? 'Tak' : 'Nie'}</td></tr>`;
+      });
+    });
+
+    (async function() {
+      const res = await fetch('/api/users');
+      const users = await res.json();
+      const sel = document.getElementById('filterUser');
+      users.forEach(u => sel.innerHTML += `<option value="${u.studentid}">${u.imie} ${u.nazwisko}</option>`);
+    })();
+  </script>
+</body>
+</html>
